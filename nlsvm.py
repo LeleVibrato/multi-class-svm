@@ -8,9 +8,10 @@ import numpy as np
 from scipy import sparse
 import osqp
 from functools import partial
+from typing import Callable, List, Tuple
 
 
-def poly_kernel(X1, X2, degree):
+def poly_kernel(X1: np.ndarray, X2: np.ndarray, degree: int) -> float:
     """多项式核函数
     :param X1: 第一个向量
     :param X2: 第二个向量
@@ -21,7 +22,7 @@ def poly_kernel(X1, X2, degree):
     return (1+np.dot(X1, X2))**degree
 
 
-def gaussian_kernel(X1, X2, sigma):
+def gaussian_kernel(X1: np.ndarray, X2: np.ndarray, sigma: float) -> float:
     """高斯核函数
     :param X1: 第一个向量
     :param X2: 第二个向量
@@ -32,7 +33,7 @@ def gaussian_kernel(X1, X2, sigma):
     return np.exp(-np.linalg.norm(X1-X2)**2 / (2 * (sigma ** 2)))
 
 
-def nlsvm_solve(X, y, classes, C, degree):
+def nlsvm_solve(X: np.ndarray, y: np.ndarray, classes: Tuple[str, str], cost: float, degree: int) -> Callable:
     """训练一个以多项式为核函数的SVM二分类器
     :param X: 训练数据的特征矩阵，n行，dim列，dim为数据维数，每一行为一个训练样本，每一列为一个特征
     :param y: 训练数据的标签矩阵，n行，1列，取值为-1或1
@@ -57,7 +58,7 @@ def nlsvm_solve(X, y, classes, C, degree):
     P[np.diag_indices_from(P)] = 2 * P[np.diag_indices_from(P)]
     A = np.vstack((np.diag(np.ones(n)), y.T))
     lb = np.zeros(n+1)
-    ub = C * np.ones(n+1)
+    ub = cost * np.ones(n+1)
     ub[-1] = 0.0
 
     # 求解二次规划
@@ -68,7 +69,7 @@ def nlsvm_solve(X, y, classes, C, degree):
     alpha = res.x
 
     # 寻找支持向量的索引值
-    svs_ind = np.where(np.logical_and(0.0 < alpha, alpha < C))[0]
+    svs_ind = np.where(np.logical_and(0.0 < alpha, alpha < cost))[0]
 
     # 计算 beta0（取平均值）
     beta0sum = 0.0
@@ -77,7 +78,7 @@ def nlsvm_solve(X, y, classes, C, degree):
                                         for i in range(n))
     beta0 = beta0sum / len(svs_ind)  # 取平均值
 
-    def nlsvm_classifer(x):
+    def nlsvm_classifer(x: np.ndarray) -> str:
         """SVM 二分类器，作为函数闭包被上一级函数返回
         :param x: 1维np.array，长度为dim
         :return : 样本 x 的预测类别
@@ -94,21 +95,21 @@ def nlsvm_solve(X, y, classes, C, degree):
     return nlsvm_classifer
 
 
-def ovo(y):
+def ovo(y: np.ndarray) -> List[Tuple[str, str]]:
     """将类别拆分成多个一对一元组
     :param y: 一维的字符串列表，代表各个训练样本的分类
     :return : 各个分类器要进行的二分类类别
     :rtype : 二元元组列表，元组元素类型为字符串
     """
-    unique_cate = np.unique(y)
-    unique_cate.sort()
-    cate_num = len(unique_cate)  # 类别数
-    print("类别: ", unique_cate)
-    return [(unique_cate[i], unique_cate[j])
-            for i in range(cate_num) for j in range(i+1, cate_num)]
+    unique_class = np.unique(y)
+    unique_class.sort()
+    num_of_classes = len(unique_class)  # 类别数
+    print("类别: ", unique_class)
+    return [(unique_class[i], unique_class[j])
+            for i in range(num_of_classes) for j in range(i+1, num_of_classes)]
 
 
-def nlsvm(X, y, C=10.0, degree=3):
+def nlsvm(X: np.ndarray, y: np.ndarray, cost:  float = 10.0, degree: int = 3) -> List[Callable]:
     """模型训练的接口函数
     :param X: 训练数据的特征矩阵，n行，dim列，dim为数据维数，每一行为一个训练样本，每一列为一个特征
     :param y: 训练数据的标签列表，一维numpy.array(string)
@@ -132,13 +133,13 @@ def nlsvm(X, y, C=10.0, degree=3):
         print(
             f"训练分类器: {i+1}/{len(classes)} ['{classes[i][0]}', '{classes[i][1]}']")
         model.append(nlsvm_solve(
-            X_tmp, y_tmp, (classes[i][0], classes[i][1]), C, degree))
+            X_tmp, y_tmp, (classes[i][0], classes[i][1]), cost, degree))
     print("训练完成!")
     print(f"训练样本数: {n}；维数: {dim}；类别数: {nclass}")
     return model
 
 
-def predict_1dim(model, x):
+def predict_1dim(model: List[Callable], x: np.ndarray) -> str:
     """ 单个样本的预测
     :param model: SVM多分类器，由函数闭包组成的列表
     :parma x: 1维np.array
@@ -151,7 +152,7 @@ def predict_1dim(model, x):
     return unique_class[np.argmax(counts)]  # 返回出现次数最多的类别
 
 
-def predict(model, X):
+def predict(model: List[Callable], X: np.ndarray) -> np.ndarray:
     """ 多个样本的预测
     :param model: SVM多分类器，由函数闭包组成的列表
     :parma X: 要预测数据的特征矩阵，np.array
@@ -165,7 +166,7 @@ def predict(model, X):
     return np.array(result)
 
 
-def accuracy(y_pred, y_test):
+def accuracy(y_pred: np.ndarray, y_test: np.ndarray) -> float:
     """计算测试样本的准确率
     :param y_pred: 一维预测标签，类型为np.array(string)
     :param y_test: 一维测试标签，类型为np.array(string)
@@ -189,13 +190,12 @@ if __name__ == '__main__':
     y = lris_df.target.astype(int).astype(str)
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=0.4, random_state=42, stratify=y)
-    model = nlsvm(X_train, y_train, C=10.0, degree=5)
+    model = nlsvm(X_train, y_train, cost=10.0, degree=5)
     print("正在进行分类器测试......")
     y_predict = predict(model, X_test)
     print(f"测试集准确率: {accuracy(y_predict, y_test)*100:.2f}%")
     endtime = datetime.now()
     print("总共用时: ", (endtime - starttime).seconds, "秒")
-
 
     # import pandas as pd
     # data_train = pd.read_csv(
@@ -209,7 +209,7 @@ if __name__ == '__main__':
 
     # starttime = datetime.now()
     # print("对手写数字数据集进行训练......")
-    # model = nlsvm(X_train, y_train, C=1.0, degree=3)
+    # model = nlsvm(X_train, y_train, cost=1.0, degree=3)
     # print("正在进行分类器测试......")
     # y_predict = predict(model, X_test)
     # print(f"测试集准确率: {accuracy(y_predict, y_test)*100:.2f}%\n")
