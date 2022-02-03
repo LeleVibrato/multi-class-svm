@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# @时间 : 2022年1月1日
+# @时间 : 2022年2月3日
 # @作者 : sam255
 # @文件名 : nlsvm.py
 # @软件 : SVM多分类器
@@ -8,40 +8,40 @@ import numpy as np
 from scipy import sparse
 import osqp
 from functools import partial
-from typing import Callable, List, Tuple
+from typing import Callable
 
 
 def poly_kernel(X1: np.ndarray, X2: np.ndarray, degree: int) -> float:
-    """多项式核函数
+    """
+    多项式核函数
     :param X1: 第一个向量
     :param X2: 第二个向量
     :param degree: 多项式的次数
-    :return : 两个向量的内积
-    :rtype : 浮点数
+    :return float: 两个向量的内积
     """
     return (1+np.dot(X1, X2))**degree
 
 
 def gaussian_kernel(X1: np.ndarray, X2: np.ndarray, sigma: float) -> float:
-    """高斯核函数
+    """
+    高斯核函数
     :param X1: 第一个向量
     :param X2: 第二个向量
     :param sigma: 高斯核函数的sigma
-    :return : 两个向量的内积
-    :rtype : 浮点数
+    :return float: 两个向量的内积
     """
     return np.exp(-np.linalg.norm(X1-X2)**2 / (2 * (sigma ** 2)))
 
 
-def nlsvm_solve(X: np.ndarray, y: np.ndarray, classes: Tuple[str, str], cost: float, degree: int) -> Callable:
-    """训练一个以多项式为核函数的SVM二分类器
+def nlsvm_solve(X: np.ndarray, y: np.ndarray, classes: tuple[str, str], cost: float, degree: int) -> Callable:
+    """
+    训练一个以多项式为核函数的SVM二分类器
     :param X: 训练数据的特征矩阵，n行，dim列，dim为数据维数，每一行为一个训练样本，每一列为一个特征
     :param y: 训练数据的标签矩阵，n行，1列，取值为-1或1
     :param classes: 长度为2的字符串元组，表示当前用于训练的二分类
-    :param C: SVM超参数，alpha_i的上界
+    :param cost: SVM超参数，alpha_i的上界
     :param degree: 多项式核函数的次数
-    :return : SVM二分类器
-    :rtype: 函数闭包
+    :return closure: SVM二分类器
     """
     n = X.shape[0]  # 样本个数
 
@@ -79,10 +79,10 @@ def nlsvm_solve(X: np.ndarray, y: np.ndarray, classes: Tuple[str, str], cost: fl
     beta0 = beta0sum / len(svs_ind)  # 取平均值
 
     def nlsvm_classifer(x: np.ndarray) -> str:
-        """SVM 二分类器，作为函数闭包被上一级函数返回
+        """
+        SVM 二分类器，作为函数闭包被上一级函数返回
         :param x: 1维np.array，长度为dim
-        :return : 样本 x 的预测类别
-        :rtype : 字符串
+        :return str: 样本 x 的预测类别
         """
         result = beta0 + \
             sum(alpha[i] * y[i, 0] * poly_kernel(x, X[i, :], degree)
@@ -95,11 +95,12 @@ def nlsvm_solve(X: np.ndarray, y: np.ndarray, classes: Tuple[str, str], cost: fl
     return nlsvm_classifer
 
 
-def ovo(y: np.ndarray) -> List[Tuple[str, str]]:
-    """将类别拆分成多个一对一元组
+def ovo(y: np.ndarray) -> list[tuple[str, str]]:
+    """
+    将类别拆分成多个一对一元组
     :param y: 一维的字符串列表，代表各个训练样本的分类
     :return : 各个分类器要进行的二分类类别
-    :rtype : 二元元组列表，元组元素类型为字符串
+    :rtype list: 二元元组列表，元组元素类型为字符串
     """
     unique_class = np.unique(y)
     unique_class.sort()
@@ -109,14 +110,14 @@ def ovo(y: np.ndarray) -> List[Tuple[str, str]]:
             for i in range(num_of_classes) for j in range(i+1, num_of_classes)]
 
 
-def nlsvm(X: np.ndarray, y: np.ndarray, cost:  float = 10.0, degree: int = 3) -> List[Callable]:
-    """模型训练的接口函数
+def nlsvm(X: np.ndarray, y: np.ndarray, cost:  float = 10.0, degree: int = 3) -> list[Callable]:
+    """
+    模型训练的接口函数
     :param X: 训练数据的特征矩阵，n行，dim列，dim为数据维数，每一行为一个训练样本，每一列为一个特征
     :param y: 训练数据的标签列表，一维numpy.array(string)
-    :param C: 大于0的浮点数，SVM超参数，alpha_i的上界
+    :param cost: 大于0的浮点数，SVM超参数，alpha_i的上界
     :param degree: 大于1的整数，多项式核函数的次数
-    :return : SVM多分类器
-    :rtype: 由函数闭包组成的列表，每个函数闭包代表一个分类器
+    :return list: SVM多分类器
     """
     n, dim = X.shape
     nclass = len(np.unique(y))
@@ -139,12 +140,12 @@ def nlsvm(X: np.ndarray, y: np.ndarray, cost:  float = 10.0, degree: int = 3) ->
     return model
 
 
-def predict_1dim(model: List[Callable], x: np.ndarray) -> str:
-    """ 单个样本的预测
+def predict_1dim(model: list[Callable], x: np.ndarray) -> str:
+    """
+    单个样本的预测
     :param model: SVM多分类器，由函数闭包组成的列表
     :parma x: 1维np.array
-    :return : x 的预测类
-    :rtype: 字符串
+    :return str: x 的预测类
     """
     classes = list(map(lambda submodel: submodel(x), model))
     unique_class, counts = np.unique(
@@ -152,12 +153,12 @@ def predict_1dim(model: List[Callable], x: np.ndarray) -> str:
     return unique_class[np.argmax(counts)]  # 返回出现次数最多的类别
 
 
-def predict(model: List[Callable], X: np.ndarray) -> np.ndarray:
-    """ 多个样本的预测
+def predict(model: list[Callable], X: np.ndarray) -> np.ndarray:
+    """
+    多个样本的预测
     :param model: SVM多分类器，由函数闭包组成的列表
     :parma X: 要预测数据的特征矩阵，np.array
-    :return : 各个样本的预测分类
-    :rtype: 由字符串组成的列表
+    :return np.ndarray: 各个样本的预测分类
     """
     n = X.shape[0]  # 样本数
     print(f"测试样本数: {n}")
@@ -167,11 +168,11 @@ def predict(model: List[Callable], X: np.ndarray) -> np.ndarray:
 
 
 def accuracy(y_pred: np.ndarray, y_test: np.ndarray) -> float:
-    """计算测试样本的准确率
+    """
+    计算测试样本的准确率
     :param y_pred: 一维预测标签，类型为np.array(string)
     :param y_test: 一维测试标签，类型为np.array(string)
-    :return : 准确率
-    :rtype : 0到1之间的浮点数
+    :return float: 准确率
     """
     return sum(y_pred == y_test) / len(y_pred)
 
