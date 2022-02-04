@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
-# @时间 : 2022年2月3日
+# @时间 : 2022年2月4日
 # @作者 : sam255
+# @学校 : scnu
 # @文件名 : nlsvm.py
 # @软件 : SVM多分类器
-# @协议 : MIT
+# @开源协议 : MIT
 
 import numpy as np
 from scipy import sparse
@@ -20,7 +21,7 @@ def nlsvm_solve(X: np.ndarray, y: np.ndarray, classes: tuple[str, str], cost: fl
     :param classes: 长度为2的字符串元组，表示当前用于训练的二分类
     :param cost: SVM超参数，alpha_i的上界
     :param kernel: 多项式核函数的类型
-    :return closure: SVM二分类器
+    :return Callable: SVM二分类器
     """
     n = X.shape[0]  # 样本个数
 
@@ -95,36 +96,18 @@ def get_kernel(kernel: str, kargs: dict) -> Callable:
     :param kargs: 核函数超参数
     :return Callable: 核函数 
     """
-    if kernel == "poly":
+    if kernel == "poly":  # 多项式核函数
         def poly_kernel(x1: np.ndarray, x2: np.ndarray) -> float:
-            """
-            多项式核函数
-            :param x1: 第一个向量
-            :param x2: 第二个向量
-            :return float: 两个向量的内积
-            """
             return (1+np.dot(x1, x2))**kargs["degree"]
         return poly_kernel
 
-    elif kernel == "linear":
+    elif kernel == "linear":  # 线性核函数
         def linear_kernel(x1: np.ndarray, x2: np.ndarray) -> float:
-            """
-            线性核函数
-            :param x1: 第一个向量
-            :param x2: 第二个向量
-            :return float: 两个向量的内积
-            """
             return np.dot(x1, x2)
         return linear_kernel
 
-    elif kernel == "rbf":
+    elif kernel == "rbf":  # 高斯核函数
         def gaussian_kernel(x1: np.ndarray, x2: np.ndarray) -> float:
-            """
-            高斯核函数
-            :param x1: 第一个向量
-            :param x2: 第二个向量
-            :return float: 两个向量的内积
-            """
             return np.exp(-np.linalg.norm(x1-x2)**2 / (2 * (kargs["sigma"] ** 2)))
         return gaussian_kernel
 
@@ -138,7 +121,8 @@ def nlsvm(X: np.ndarray, y: np.ndarray, cost:  float, kernel: Literal["linear", 
     :param X: 训练数据的特征矩阵，n行，dim列，dim为数据维数，每一行为一个训练样本，每一列为一个特征
     :param y: 训练数据的标签列表，一维numpy.array(string)
     :param cost: 大于0的浮点数，SVM超参数，alpha_i的上界
-    :param degree: 大于1的整数，多项式核函数的次数
+    :param kernel: 核函数类型
+    :param **kargs: 核函数超参数
     :return list: SVM多分类器
     """
     kernelf: Callable = get_kernel(kernel, kargs)
