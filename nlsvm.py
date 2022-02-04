@@ -78,8 +78,7 @@ def ovo(y: np.ndarray) -> list[tuple[str, str]]:
     """
     将类别拆分成多个一对一元组
     :param y: 一维的字符串列表，代表各个训练样本的分类
-    :return : 各个分类器要进行的二分类类别
-    :rtype list: 二元元组列表，元组元素类型为字符串
+    :return list: 各个分类器要进行的二分类类别
     """
     unique_class = np.unique(y)
     unique_class.sort()
@@ -197,12 +196,12 @@ if __name__ == '__main__':
     y = lris_df.target.astype(int).astype(str)
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=0.4, random_state=42, stratify=y)
-    # 高斯核函数，sigma=1.0
     print("对鸢尾花数据集进行训练......")
+    # 高斯核函数，sigma=1.0
     model = nlsvm(X_train, y_train, cost=10.0, kernel="rbf", sigma=1.0)
     print("正在进行分类器测试......")
-    y_predict = predict(model, X_test)
-    print(f"测试集准确率: {accuracy(y_predict, y_test)*100:.2f}%")
+    y_pred = predict(model, X_test)
+    print(f"测试集准确率: {accuracy(y_pred, y_test)*100:.2f}%")
     endtime = datetime.now()
     print("总共用时: ", (endtime - starttime).seconds, "秒")
 
@@ -220,7 +219,7 @@ if __name__ == '__main__':
     # print("对手写数字数据集进行训练......")
     # model = nlsvm(X_train, y_train, cost=1.0, kernel="poly", degree=3)
     # print("正在进行分类器测试......")
-    # y_predict = predict(model, X_test)
-    # print(f"测试集准确率: {accuracy(y_predict, y_test)*100:.2f}%\n")
+    # y_pred = predict(model, X_test)
+    # print(f"测试集准确率: {accuracy(y_pred, y_test)*100:.2f}%\n")
     # endtime = datetime.now()
     # print("总共用时: ", (endtime - starttime).seconds, "秒\n")
