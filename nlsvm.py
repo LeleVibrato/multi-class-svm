@@ -60,7 +60,7 @@ def nlsvm_solve(X: np.ndarray, y: np.ndarray, classes: tuple[str, str], cost: fl
     def nlsvm_classifer(x: np.ndarray) -> str:
         """
         SVM 二分类器，作为函数闭包被上一级函数返回
-        :param x: 1维np.array，长度为dim
+        :param x: 1维np.ndarray，长度为dim
         :return str: 样本 x 的预测类别
         """
         result = beta0 + \
@@ -118,7 +118,7 @@ def nlsvm(X: np.ndarray, y: np.ndarray, cost:  float, kernel: Literal["linear", 
     """
     模型训练的接口函数
     :param X: 训练数据的特征矩阵，n行，dim列，dim为数据维数，每一行为一个训练样本，每一列为一个特征
-    :param y: 训练数据的标签列表，一维numpy.array(string)
+    :param y: 训练数据的标签列表，一维np.ndarray[str]
     :param cost: 大于0的浮点数，SVM超参数，alpha_i的上界
     :param kernel: 核函数类型
     :param **kargs: 核函数超参数
@@ -150,7 +150,7 @@ def predict_1dim(model: list[Callable], x: np.ndarray) -> str:
     """
     单个样本的预测
     :param model: SVM多分类器，由函数闭包组成的列表
-    :parma x: 1维np.array
+    :parma x: 1维np.ndarray
     :return str: x 的预测类
     """
     classes = list(map(lambda submodel: submodel(x), model))
@@ -163,8 +163,8 @@ def predict(model: list[Callable], X: np.ndarray) -> np.ndarray:
     """
     多个样本的预测
     :param model: SVM多分类器，由函数闭包组成的列表
-    :parma X: 要预测数据的特征矩阵，np.array
-    :return np.ndarray: 各个样本的预测分类
+    :parma X: 要预测数据的特征矩阵，np.ndarray
+    :return np.ndarray[str]: 各个样本的预测分类
     """
     n = X.shape[0]  # 样本数
     print(f"测试样本数: {n}")
