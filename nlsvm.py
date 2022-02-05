@@ -15,12 +15,12 @@ from typing import Callable, Literal
 
 def nlsvm_solve(X: np.ndarray, y: np.ndarray, classes: tuple[str, str], cost: float, kernel: Callable) -> Callable:
     """
-    训练一个以多项式为核函数的SVM二分类器
+    训练一个SVM二分类器
     :param X: 训练数据的特征矩阵，n行，dim列，dim为数据维数，每一行为一个训练样本，每一列为一个特征
     :param y: 训练数据的标签矩阵，n行，1列，取值为-1或1
     :param classes: 长度为2的字符串元组，表示当前用于训练的二分类
     :param cost: SVM超参数，alpha_i的上界
-    :param kernel: 多项式核函数的类型
+    :param kernel: 核函数
     :return Callable: SVM二分类器
     """
     n = X.shape[0]  # 样本个数
