@@ -63,10 +63,9 @@ def nlsvm_solve(X: np.ndarray, y: np.ndarray, classes: tuple[str, str], cost: fl
         :param x: 1维np.ndarray，长度为dim
         :return str: 样本 x 的预测类别
         """
-        result = beta0 + \
-            sum(alpha[i] * y[i, 0] * kernel(x, X[i, :])
-                for i in range(n))
-        if result >= 0.0:
+        result = beta0 + sum(alpha[i] * y[i, 0] *
+                             kernel(x, X[i, :]) for i in range(n))
+        if np.sign(result) == 1:
             return classes[0]
         else:
             return classes[1]
