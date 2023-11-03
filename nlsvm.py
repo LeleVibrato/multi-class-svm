@@ -10,13 +10,13 @@ import numpy as np
 from scipy import sparse
 import osqp
 from functools import partial
-from typing import Callable, Literal,List
+from typing import Callable, Literal, List
 
 
 def nlsvm_solve(X: np.ndarray, y: np.ndarray, classes: tuple[str, str], cost: float, kernel: Callable) -> Callable:
     """
     Train a binary SVM classifier.
-    
+
     :param X: Feature matrix of training data, with 'n' rows and 'dim' columns, 
               where 'dim' is the number of features. Each row represents a training sample, 
               each column represents a feature.
@@ -26,7 +26,7 @@ def nlsvm_solve(X: np.ndarray, y: np.ndarray, classes: tuple[str, str], cost: fl
     :param kernel: Kernel function.
     :return: A callable SVM binary classifier function.
     """
-    n = X.shape[0] # Number of samples
+    n = X.shape[0]  # Number of samples
 
     # Calculate the inner product
     inprod = np.ones((n, n))
@@ -49,18 +49,19 @@ def nlsvm_solve(X: np.ndarray, y: np.ndarray, classes: tuple[str, str], cost: fl
     alpha = res.x
 
     # Find the indices of the support vectors
-    svs_ind = np.where((alpha > 1e-5) & (alpha < cost - 1e-5))[0] # # Epsilon for numerical stability
+    svs_ind = np.where((alpha > 1e-5) & (alpha < cost - 1e-5)
+                       )[0]  # Epsilon for numerical stability
 
     # # Calculate beta0 (by averaging)
     # support_vectors = X[svs_ind, :]
     support_labels = y[svs_ind]
-    beta0 = np.mean(1.0 / support_labels - np.sum((alpha * y * inprod)[svs_ind], axis=1))
-
+    beta0 = np.mean(1.0 / support_labels -
+                    np.sum((alpha * y * inprod)[svs_ind], axis=1))
 
     def nlsvm_classifer(x: np.ndarray) -> str:
         """
         SVM binary classifier, returned as a closure by the parent function.
-        
+
         :param x: A 1D np.ndarray of length 'dim'.
         :return: Predicted class for sample x.
         """
@@ -68,14 +69,13 @@ def nlsvm_solve(X: np.ndarray, y: np.ndarray, classes: tuple[str, str], cost: fl
                              kernel(x, X[i, :]) for i in range(n))
         return classes[0] if np.sign(result) == 1 else classes[1]
 
-
     return nlsvm_classifer
 
 
 def ovo(y: np.ndarray) -> list[tuple[str, str]]:
     """
     Split classes into multiple one-vs-one tuples.
-    
+
     :param y: A one-dimensional array of strings representing the classification of each sample.
     :return: A list of tuples, each representing the two classes for binary classification.
     """
@@ -90,13 +90,13 @@ def ovo(y: np.ndarray) -> list[tuple[str, str]]:
 def get_kernel(kernel: str, kargs: dict) -> Callable:
     """
     Generate a kernel function based on the given parameters.
-    
+
     :param kernel: Type of the kernel function.
     :param kargs: Hyperparameters for the kernel function.
     :return: A callable representing the kernel function.
     """
 
-    if kernel == "poly": # Polynomial kernel function
+    if kernel == "poly":  # Polynomial kernel function
         def poly_kernel(x1: np.ndarray, x2: np.ndarray) -> float:
             return (1+np.dot(x1, x2))**kargs["degree"]
         return poly_kernel
@@ -108,7 +108,8 @@ def get_kernel(kernel: str, kargs: dict) -> Callable:
 
     elif kernel == "rbf":  # Gaussian (RBF) kernel function
         # Pre-compute the inverse of sigma squared
-        sigma_squared_inv = 1 / (2 * (kargs["sigma"] ** 2))  
+        sigma_squared_inv = 1 / (2 * (kargs["sigma"] ** 2))
+
         def gaussian_kernel(x1: np.ndarray, x2: np.ndarray) -> float:
             return np.exp(-np.linalg.norm(x1-x2)**2 * sigma_squared_inv)
         return gaussian_kernel
@@ -117,11 +118,11 @@ def get_kernel(kernel: str, kargs: dict) -> Callable:
         raise ValueError("Unsupported kernel function")
 
 
-def nlsvm(X: np.ndarray, y: np.ndarray, cost: float, 
+def nlsvm(X: np.ndarray, y: np.ndarray, cost: float,
           kernel: Literal["linear", "poly", "rbf"], **kargs) -> List[Callable]:
     """
     Interface function for model training.
-    
+
     :param X: Feature matrix of the training data, with n rows and dim columns, 
               where dim is the number of features, each row represents a training sample.
     :param y: Label array of the training data, a one-dimensional np.ndarray of strings.
@@ -135,7 +136,8 @@ def nlsvm(X: np.ndarray, y: np.ndarray, cost: float,
     nclass = len(np.unique(y))
     classes = ovo(y)  # Split into multiple one-vs-one tuples
     models = []
-    print(f"A total of {len(classes)} classifiers are required for this task...")
+    print(
+        f"A total of {len(classes)} classifiers are required for this task...")
     for i, (class1, class2) in enumerate(classes):
         A = X[y == class1, :]
         B = X[y == class2, :]
@@ -143,12 +145,15 @@ def nlsvm(X: np.ndarray, y: np.ndarray, cost: float,
         yB = -np.ones((B.shape[0], 1))
         X_tmp = np.vstack((A, B))
         y_tmp = np.vstack((yA, yB))
-        print(f"Training classifier: {i + 1}/{len(classes)} ['{class1}', '{class2}']")
+        print(
+            f"Training classifier: {i + 1}/{len(classes)} ['{class1}', '{class2}']")
         models.append(nlsvm_solve(
             X_tmp, y_tmp, (class1, class2), cost, kernelf))
     print("Training complete!")
-    print(f"Number of training samples: {n}; Dimension: {dim}; Number of classes: {nclass}")
+    print(
+        f"Number of training samples: {n}; Dimension: {dim}; Number of classes: {nclass}")
     return models
+
 
 def predict_1dim(models: List[Callable], x: np.ndarray) -> str:
     """
@@ -163,10 +168,9 @@ def predict_1dim(models: List[Callable], x: np.ndarray) -> str:
 
     # Count the occurrences of each predicted class
     unique_classes, counts = np.unique(class_predictions, return_counts=True)
-    
+
     # Return the class that appears the most times
     return unique_classes[np.argmax(counts)]
-
 
 
 def predict(models: List[Callable], X: np.ndarray) -> np.ndarray:
@@ -211,15 +215,15 @@ if __name__ == '__main__':
     iris_df = datasets.load_iris()  # Load the Iris dataset
     X = iris_df.data
     y = iris_df.target.astype(int).astype(str)
-    
+
     # Split the dataset into a training set and a test set
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=0.4, random_state=42, stratify=y)
-    
+
     print("Training on the Iris dataset...")
     # Use the Gaussian kernel function with sigma=1.0
     model = nlsvm(X_train, y_train, cost=10.0, kernel="rbf", sigma=1.0)
-    
+
     print("Testing the classifier...")
     y_pred = predict(model, X_test)
     print(f"Test set accuracy: {accuracy(y_pred, y_test)*100:.2f}%")
