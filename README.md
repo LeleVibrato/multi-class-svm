@@ -16,36 +16,40 @@ if __name__ == '__main__':
     import os
     os.chdir(os.path.dirname(__file__))
     from sklearn.model_selection import train_test_split
-
     from sklearn import datasets
+
     starttime = datetime.now()
-    lris_df = datasets.load_iris()
-    X = lris_df.data
-    y = lris_df.target.astype(int).astype(str)
+    iris_df = datasets.load_iris()  # Load the Iris dataset
+    X = iris_df.data
+    y = iris_df.target.astype(int).astype(str)
+    
+    # Split the dataset into a training set and a test set
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=0.4, random_state=42, stratify=y)
-    # 高斯核函数，sigma=1.0
-    print("对鸢尾花数据集进行训练......")
+    
+    print("Training on the Iris dataset...")
+    # Use the Gaussian kernel function with sigma=1.0
     model = nlsvm(X_train, y_train, cost=10.0, kernel="rbf", sigma=1.0)
-    print("正在进行分类器测试......")
-    y_predict = predict(model, X_test)
-    print(f"测试集准确率: {accuracy(y_predict, y_test)*100:.2f}%")
+    
+    print("Testing the classifier...")
+    y_pred = predict(model, X_test)
+    print(f"Test set accuracy: {accuracy(y_pred, y_test)*100:.2f}%")
     endtime = datetime.now()
-    print("总共用时: ", (endtime - starttime).seconds, "秒")
+    print("Total time: ", (endtime - starttime).seconds, "seconds")
 ```
 
 output:
 ```
-对鸢尾花数据集进行训练......
-类别:  ['0' '1' '2']
-此项任务总共需要 3 个分类器......
-训练分类器: 1/3 ['0', '1']
-训练分类器: 2/3 ['0', '2']
-训练分类器: 3/3 ['1', '2']
-训练完成!
-训练样本数: 90；维数: 4；类别数: 3
-正在进行分类器测试......
-测试样本数: 60
-测试集准确率: 96.67%
-总共用时:  0 秒
+Training on the Iris dataset...
+classes:  ['0' '1' '2']
+A total of 3 classifiers are required for this task...
+Training classifier: 1/3 ['0', '1']
+Training classifier: 2/3 ['0', '2']
+Training classifier: 3/3 ['1', '2']
+Training complete!
+Number of training samples: 90; Dimension: 4; Number of classes: 3
+Testing the classifier...
+Number of test samples: 60
+Test set accuracy: 98.33%
+Total time:  0 seconds
 ```

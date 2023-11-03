@@ -10,176 +10,194 @@ import numpy as np
 from scipy import sparse
 import osqp
 from functools import partial
-from typing import Callable, Literal
+from typing import Callable, Literal,List
 
 
 def nlsvm_solve(X: np.ndarray, y: np.ndarray, classes: tuple[str, str], cost: float, kernel: Callable) -> Callable:
     """
-    训练一个SVM二分类器
-    :param X: 训练数据的特征矩阵，n行，dim列，dim为数据维数，每一行为一个训练样本，每一列为一个特征
-    :param y: 训练数据的标签矩阵，n行，1列，取值为-1或1
-    :param classes: 长度为2的字符串元组，表示当前用于训练的二分类
-    :param cost: SVM超参数，alpha_i的上界
-    :param kernel: 核函数
-    :return Callable: SVM二分类器
+    Train a binary SVM classifier.
+    
+    :param X: Feature matrix of training data, with 'n' rows and 'dim' columns, 
+              where 'dim' is the number of features. Each row represents a training sample, 
+              each column represents a feature.
+    :param y: Label matrix for training data, 'n' rows and 1 column, with values -1 or 1.
+    :param classes: A tuple of two strings, representing the classes for the binary classification.
+    :param cost: SVM hyperparameter, the upper bound of alpha_i.
+    :param kernel: Kernel function.
+    :return: A callable SVM binary classifier function.
     """
-    n = X.shape[0]  # 样本个数
+    n = X.shape[0] # Number of samples
 
-    # 计算内积
+    # Calculate the inner product
     inprod = np.ones((n, n))
     for i in range(n):
         for j in range(i+1):
             inprod[i, j] = inprod[j, i] = kernel(X[j, :], X[i, :])
 
-    # 定义二次规划参数矩阵
+    # Define the quadratic programming parameter matrices
     q = -np.ones(n)
-    P = 0.5 * y @ y.T * inprod
+    P = sparse.csc_matrix(0.5 * y * y.T * inprod)
     P[np.diag_indices_from(P)] = 2 * P[np.diag_indices_from(P)]
-    A = np.vstack((np.diag(np.ones(n)), y.T))
+    A = sparse.csc_matrix(np.vstack((np.eye(n), y.T)))
     lb = np.zeros(n+1)
-    ub = cost * np.ones(n+1)
-    ub[-1] = 0.0
+    ub = np.hstack([cost * np.ones(n), 0.0])
 
-    # 求解二次规划
+    # Solve the quadratic programming problem
     prob = osqp.OSQP()
-    prob.setup(sparse.csc_matrix(P), q,
-               sparse.csc_matrix(A), lb, ub, verbose=False)
+    prob.setup(P, q, A, lb, ub, verbose=False)
     res = prob.solve()
     alpha = res.x
 
-    # 寻找支持向量的索引值
-    svs_ind = np.where(np.logical_and(0.0 < alpha, alpha < cost))[0]
+    # Find the indices of the support vectors
+    svs_ind = np.where((alpha > 1e-5) & (alpha < cost - 1e-5))[0] # # Epsilon for numerical stability
 
-    # 计算 beta0（取平均值）
-    beta0sum = 0.0
-    for j in svs_ind:
-        beta0sum += 1.0 / y[j, 0] - sum(alpha[i] * y[i, 0] * inprod[j, i]
-                                        for i in range(n))
-    beta0 = beta0sum / len(svs_ind)  # 取平均值
+    # # Calculate beta0 (by averaging)
+    # support_vectors = X[svs_ind, :]
+    support_labels = y[svs_ind]
+    beta0 = np.mean(1.0 / support_labels - np.sum((alpha * y * inprod)[svs_ind], axis=1))
+
 
     def nlsvm_classifer(x: np.ndarray) -> str:
         """
-        SVM 二分类器，作为函数闭包被上一级函数返回
-        :param x: 1维np.ndarray，长度为dim
-        :return str: 样本 x 的预测类别
+        SVM binary classifier, returned as a closure by the parent function.
+        
+        :param x: A 1D np.ndarray of length 'dim'.
+        :return: Predicted class for sample x.
         """
         result = beta0 + sum(alpha[i] * y[i, 0] *
                              kernel(x, X[i, :]) for i in range(n))
-        if np.sign(result) == 1:
-            return classes[0]
-        else:
-            return classes[1]
+        return classes[0] if np.sign(result) == 1 else classes[1]
+
 
     return nlsvm_classifer
 
 
 def ovo(y: np.ndarray) -> list[tuple[str, str]]:
     """
-    将类别拆分成多个一对一元组
-    :param y: 一维的字符串列表，代表各个训练样本的分类
-    :return list: 各个分类器要进行的二分类类别
+    Split classes into multiple one-vs-one tuples.
+    
+    :param y: A one-dimensional array of strings representing the classification of each sample.
+    :return: A list of tuples, each representing the two classes for binary classification.
     """
     unique_class = np.unique(y)
     unique_class.sort()
-    num_of_classes = len(unique_class)  # 类别数
-    print("类别: ", unique_class)
+    num_of_classes = len(unique_class)   # Number of unique classes
+    print("classes: ", unique_class)
     return [(unique_class[i], unique_class[j])
             for i in range(num_of_classes) for j in range(i+1, num_of_classes)]
 
 
 def get_kernel(kernel: str, kargs: dict) -> Callable:
     """
-    根据参数生成核函数
-    :param kernel: 核函数类型
-    :param kargs: 核函数超参数
-    :return Callable: 核函数 
+    Generate a kernel function based on the given parameters.
+    
+    :param kernel: Type of the kernel function.
+    :param kargs: Hyperparameters for the kernel function.
+    :return: A callable representing the kernel function.
     """
-    if kernel == "poly":  # 多项式核函数
+
+    if kernel == "poly": # Polynomial kernel function
         def poly_kernel(x1: np.ndarray, x2: np.ndarray) -> float:
             return (1+np.dot(x1, x2))**kargs["degree"]
         return poly_kernel
 
-    elif kernel == "linear":  # 线性核函数
+    elif kernel == "linear":  # Linear kernel function
         def linear_kernel(x1: np.ndarray, x2: np.ndarray) -> float:
-            return np.dot(x1, x2)
+            return np.inner(x1, x2)
         return linear_kernel
 
-    elif kernel == "rbf":  # 高斯核函数
+    elif kernel == "rbf":  # Gaussian (RBF) kernel function
+        # Pre-compute the inverse of sigma squared
+        sigma_squared_inv = 1 / (2 * (kargs["sigma"] ** 2))  
         def gaussian_kernel(x1: np.ndarray, x2: np.ndarray) -> float:
-            return np.exp(-np.linalg.norm(x1-x2)**2 / (2 * (kargs["sigma"] ** 2)))
+            return np.exp(-np.linalg.norm(x1-x2)**2 * sigma_squared_inv)
         return gaussian_kernel
 
     else:
-        raise ValueError("不支持的核函数")
+        raise ValueError("Unsupported kernel function")
 
 
-def nlsvm(X: np.ndarray, y: np.ndarray, cost:  float, kernel: Literal["linear", "poly", "rbf"], **kargs) -> list[Callable]:
+def nlsvm(X: np.ndarray, y: np.ndarray, cost: float, 
+          kernel: Literal["linear", "poly", "rbf"], **kargs) -> List[Callable]:
     """
-    模型训练的接口函数
-    :param X: 训练数据的特征矩阵，n行，dim列，dim为数据维数，每一行为一个训练样本，每一列为一个特征
-    :param y: 训练数据的标签列表，一维np.ndarray[str]
-    :param cost: 大于0的浮点数，SVM超参数，alpha_i的上界
-    :param kernel: 核函数类型
-    :param **kargs: 核函数超参数
-    :return list: SVM多分类器
+    Interface function for model training.
+    
+    :param X: Feature matrix of the training data, with n rows and dim columns, 
+              where dim is the number of features, each row represents a training sample.
+    :param y: Label array of the training data, a one-dimensional np.ndarray of strings.
+    :param cost: A positive float, the SVM hyperparameter, the upper bound for alpha_i.
+    :param kernel: Type of kernel function.
+    :param **kargs: Hyperparameters for the kernel function.
+    :return: List of SVM classifiers for multi-classification.
     """
     kernelf: Callable = get_kernel(kernel, kargs)
     n, dim = X.shape
     nclass = len(np.unique(y))
-    classes = ovo(y)  # 拆分成多个一对一元组
-    model = []
-    print(f"此项任务总共需要 {len(classes)} 个分类器......")
-    for i in range(len(classes)):
-        A = X[y == classes[i][0], :]
-        B = X[y == classes[i][1], :]
+    classes = ovo(y)  # Split into multiple one-vs-one tuples
+    models = []
+    print(f"A total of {len(classes)} classifiers are required for this task...")
+    for i, (class1, class2) in enumerate(classes):
+        A = X[y == class1, :]
+        B = X[y == class2, :]
         yA = np.ones((A.shape[0], 1))
         yB = -np.ones((B.shape[0], 1))
         X_tmp = np.vstack((A, B))
         y_tmp = np.vstack((yA, yB))
-        print(
-            f"训练分类器: {i+1}/{len(classes)} ['{classes[i][0]}', '{classes[i][1]}']")
-        model.append(nlsvm_solve(
-            X_tmp, y_tmp, (classes[i][0], classes[i][1]), cost, kernelf))
-    print("训练完成!")
-    print(f"训练样本数: {n}；维数: {dim}；类别数: {nclass}")
-    return model
+        print(f"Training classifier: {i + 1}/{len(classes)} ['{class1}', '{class2}']")
+        models.append(nlsvm_solve(
+            X_tmp, y_tmp, (class1, class2), cost, kernelf))
+    print("Training complete!")
+    print(f"Number of training samples: {n}; Dimension: {dim}; Number of classes: {nclass}")
+    return models
+
+def predict_1dim(models: List[Callable], x: np.ndarray) -> str:
+    """
+    Predict the class of a single sample.
+
+    :param models: A list of SVM classifiers, each as a function closure.
+    :param x: A 1-dimensional np.ndarray representing the sample to predict.
+    :return: The predicted class for sample x.
+    """
+    # Predict the class for the sample using each submodel
+    class_predictions = list(map(lambda submodel: submodel(x), models))
+
+    # Count the occurrences of each predicted class
+    unique_classes, counts = np.unique(class_predictions, return_counts=True)
+    
+    # Return the class that appears the most times
+    return unique_classes[np.argmax(counts)]
 
 
-def predict_1dim(model: list[Callable], x: np.ndarray) -> str:
-    """
-    单个样本的预测
-    :param model: SVM多分类器，由函数闭包组成的列表
-    :parma x: 1维np.ndarray
-    :return str: x 的预测类
-    """
-    classes = list(map(lambda submodel: submodel(x), model))
-    unique_class, counts = np.unique(
-        classes, return_counts=True)  # 计算每个类别出现的次数
-    return unique_class[np.argmax(counts)]  # 返回出现次数最多的类别
 
+def predict(models: List[Callable], X: np.ndarray) -> np.ndarray:
+    """
+    Predict the classes for multiple samples.
 
-def predict(model: list[Callable], X: np.ndarray) -> np.ndarray:
+    :param models: A list of SVM classifiers, each as a function closure.
+    :param X: Feature matrix of the data to predict, as an np.ndarray.
+    :return: An np.ndarray of the predicted classes for each sample.
     """
-    多个样本的预测
-    :param model: SVM多分类器，由函数闭包组成的列表
-    :parma X: 要预测数据的特征矩阵，np.ndarray
-    :return np.ndarray[str]: 各个样本的预测分类
-    """
-    n = X.shape[0]  # 样本数
-    print(f"测试样本数: {n}")
-    predict_func = partial(predict_1dim, model)
-    result = list(map(lambda x: predict_func(x), X))
-    return np.array(result)
+    num_samples = X.shape[0]  # Number of samples
+    print(f"Number of test samples: {num_samples}")
+    predict_func = partial(predict_1dim, models)
+
+    # Generate predictions for all samples
+    predictions = list(map(predict_func, X))
+
+    return np.array(predictions)
 
 
 def accuracy(y_pred: np.ndarray, y_test: np.ndarray) -> float:
     """
-    计算测试样本的准确率
-    :param y_pred: 一维预测标签，类型为np.ndarray[str]
-    :param y_test: 一维测试标签，类型为np.ndarray[str]
-    :return float: 准确率
+    Calculate the accuracy of predictions for test samples.
+
+    :param y_pred: 1-dimensional array of predicted labels, as np.ndarray[str].
+    :param y_test: 1-dimensional array of actual test labels, as np.ndarray[str].
+    :return: The accuracy as a float.
     """
-    return sum(y_pred == y_test) / len(y_pred)
+    correct_predictions = sum(y_pred == y_test)
+    total_predictions = len(y_pred)
+    return correct_predictions / total_predictions
 
 
 if __name__ == '__main__':
@@ -187,23 +205,28 @@ if __name__ == '__main__':
     import os
     os.chdir(os.path.dirname(__file__))
     from sklearn.model_selection import train_test_split
-
     from sklearn import datasets
+
     starttime = datetime.now()
-    lris_df = datasets.load_iris()
-    X = lris_df.data
-    y = lris_df.target.astype(int).astype(str)
+    iris_df = datasets.load_iris()  # Load the Iris dataset
+    X = iris_df.data
+    y = iris_df.target.astype(int).astype(str)
+    
+    # Split the dataset into a training set and a test set
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=0.4, random_state=42, stratify=y)
-    print("对鸢尾花数据集进行训练......")
-    # 高斯核函数，sigma=1.0
+    
+    print("Training on the Iris dataset...")
+    # Use the Gaussian kernel function with sigma=1.0
     model = nlsvm(X_train, y_train, cost=10.0, kernel="rbf", sigma=1.0)
-    print("正在进行分类器测试......")
+    
+    print("Testing the classifier...")
     y_pred = predict(model, X_test)
-    print(f"测试集准确率: {accuracy(y_pred, y_test)*100:.2f}%")
+    print(f"Test set accuracy: {accuracy(y_pred, y_test)*100:.2f}%")
     endtime = datetime.now()
-    print("总共用时: ", (endtime - starttime).seconds, "秒")
+    print("Total time: ", (endtime - starttime).seconds, "seconds")
 
+    # Code for another dataset (commented out)
     # import pandas as pd
     # data_train = pd.read_csv(
     #     "zip.train", delimiter=" ", header=None).to_numpy()
@@ -215,10 +238,10 @@ if __name__ == '__main__':
     # y_test = data_test[:, 0].astype(int).astype(str)
 
     # starttime = datetime.now()
-    # print("对手写数字数据集进行训练......")
+    # print("Training on the handwritten digits dataset...")
     # model = nlsvm(X_train, y_train, cost=1.0, kernel="poly", degree=3)
-    # print("正在进行分类器测试......")
+    # print("Testing the classifier...")
     # y_pred = predict(model, X_test)
-    # print(f"测试集准确率: {accuracy(y_pred, y_test)*100:.2f}%\n")
+    # print(f"Test set accuracy: {accuracy(y_pred, y_test)*100:.2f}%")
     # endtime = datetime.now()
-    # print("总共用时: ", (endtime - starttime).seconds, "秒\n")
+    # print("Total time: ", (endtime - starttime).seconds, "seconds")
