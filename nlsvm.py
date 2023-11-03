@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
-# @时间 : 2022年2月4日
-# @作者 : sam255
-# @学校 : scnu
-# @文件名 : nlsvm.py
-# @软件 : SVM多分类器
-# @开源协议 : MIT
+# @Time: February 4, 2022
+# @Author: sam255
+# @School: SCNU (South China Normal University)
+# @Filename: nlsvm.py
+# @Software: SVM Multiclass Classifier
+# @License: MIT
 
 import numpy as np
 from scipy import sparse
